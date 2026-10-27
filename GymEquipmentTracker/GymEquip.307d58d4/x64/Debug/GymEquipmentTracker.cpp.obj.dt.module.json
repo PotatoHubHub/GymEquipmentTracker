@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "GymEquip.307d58d4\\x64\\Debug\\GymEquipmentTracker.obj",
+            "outputs": [
+                "GymEquip.307d58d4\\x64\\Debug\\GymEquipmentTracker.cpp.obj.dt.module.json",
+                "GymEquip.307d58d4\\x64\\Debug\\GymEquipmentTracker.cpp.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}
