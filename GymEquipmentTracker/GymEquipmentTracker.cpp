@@ -9,11 +9,12 @@ class Equipment {
 protected:
 	std::string name;
 	std::string category;
-	bool isAvailable
+	bool isAvailable;
 
 public:
 	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) {}
 	virtual ~Equipment() = default;
+
 	// Getters
 	std::string getName() const {
 		return name;
@@ -30,37 +31,41 @@ public:
 	void setAvailability(bool s) {
 		isAvailable = s;
 	}
+
 	// Pure Virtual Function
 	virtual void displayInfo() const = 0;
 };
 
 // Derived class 1
-class EquipmentCategory : virtual public Equipment {
+class EquipmentCategory : public Equipment {
 public:
 	EquipmentCategory(std::string n, std::string cat)
-		: Equipment(n, cat) {}
+		: Equipment(n, cat) {
+	}
 
 	// Override
 	void displayInfo() const override {
 		std::cout << "[Category] Item: " << name
-				  << " | Type: " << category
-				  << " | Status: " << (isAvailable ? "Available" : "In Use") << "\n";
+			<< " | Type: " << category
+			<< " | Status: " << (isAvailable ? "Available" : "In Use") << "\n";
 	}
 };
 
-// Derived class 2
+// Derived class 2 
 class Status : public Equipment {
 public:
 	Status(std::string n, std::string cat)
-		: Equipment(n, cat) {}
+		: Equipment(n, cat) {
+	}
 
 	// Override
 	void displayInfo() const override {
 		std::cout << "[Status] Item: " << name
-				  << " | Status: " << (isAvailable ? "Available" : "In Use")
-				  << " | Group: " << category << "\n";
+			<< " | Status: " << (isAvailable ? "Available" : "In Use")
+			<< " | Group: " << category << "\n";
 	}
 };
+
 // User class
 class User {
 private:
@@ -75,20 +80,22 @@ public:
 // Gym class
 class Gym {
 private:
-	// array to store gym equipment
+	// RUNTIME POLYMORPHISM ALERT ! ! ! (also the gym equipment array)
 	std::vector<std::unique_ptr<Equipment>> inventory;
+
 public:
 	void addEquipment(std::unique_ptr<Equipment> item) {
-		inventory.push_back(std:move(item));
+		inventory.push_back(std::move(item));
 	}
 
 	void checkList() const {
 		std::cout << "\n--- Gym Equipment List ---\n";
-		for (const auto& item: inventory) {
-			item->displayInfo();
+		for (const auto& item : inventory) {
+			item->displayInfo(); // THIS ONE RIGHT HERE THAT'S THE POLYMORPHISM
 		}
 		std::cout << "-----------------------------\n";
 	}
+
 	void takeItem(const std::string& itemName) {
 		bool found = false;
 		for (auto& item : inventory) {
@@ -104,10 +111,9 @@ public:
 				return;
 			}
 		}
-	}
-	// not on list
-	if (!found) {
-		throw std::out_of_range("Equipment name doesn't exist in list.");
+
+		if (!found) {
+			throw std::out_of_range("Equipment name doesn't exist in list.");
 		}
 	}
 };
@@ -115,27 +121,29 @@ public:
 int main() {
 	Gym localGym;
 
-	// Something here
+	// rewrote the inventory for this one, might need to rewrite again next checkpoint
+	localGym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
+	localGym.addEquipment(std::make_unique<Status>("Dumbbell Set", "Strength"));
+	localGym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
 
-	std::cout << "==== Gym Equipment Tracker App ====";
+	std::cout << "==== Gym Equipment Tracker App ====\n";
 
 	bool appRunning = true;
-	// loop for app
-	while(appRunning) {
+	while (appRunning) {
 		std::cout << "\nMain Menu:\n";
 		std::cout << "1. Check Equipment List\n";
 		std::cout << "2. Take Equipment Item\n";
 		std::cout << "3. Exit Application\n";
-		std::cout << "Select option (1-3)";
+		std::cout << "Select option (1-3): ";
 
-		// choices for app
 		int choice;
 		if (!(std::cin >> choice)) {
 			std::cin.clear();
 			std::cin.ignore(10000, '\n');
-			std::cout << "\nInvalid choice type. Try again and enter a choice number.";
+			std::cout << "\nInvalid choice type. Try again and enter a choice number.\n";
 			continue;
-		std::cin.ignore();
+		}
+		std::cin.ignore(10000, '\n');
 
 		if (choice == 1) {
 			localGym.checkList();
@@ -148,7 +156,7 @@ int main() {
 			try {
 				localGym.takeItem(targetEquipment);
 			}
-			catch (constant std::exception& error) {
+			catch (const std::exception& error) {
 				std::cerr << "\n[Notification] " << error.what() << "\n";
 				std::cout << "[System Recovery] Operation blocked safely. Returning to main menu.\n";
 			}
@@ -156,9 +164,11 @@ int main() {
 		else if (choice == 3) {
 			std::cout << "\nExiting Gym Equipment Tracker App\n";
 			appRunning = false;
+		}
 		else {
 			std::cout << "\nInvalid menu option. Please select 1, 2, or 3.\n";
 		}
+	}
 
 	return 0;
 }
