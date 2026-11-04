@@ -15,6 +15,9 @@ class Status : public Equipment {
 
 };
 
+class GymEquipment : public EquipmentCategory, public Status {
+
+};
 
 class User {
 
