@@ -84,7 +84,7 @@ public:
 	}
 
 	void checkList() const {
-		std::cout << "\n--- Gym Equipment List" ---\n";
+		std::cout << "\n--- Gym Equipment List ---\n";
 		for (const auto& item: inventory) {
 			item->displayInfo();
 		}
