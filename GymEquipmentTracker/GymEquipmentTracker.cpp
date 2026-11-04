@@ -14,7 +14,7 @@ protected:
 public:
 	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) {}
 	virtual ~Equipment() = default;
-
+	// Getters
 	std::string getName() const {
 		return name;
 	}
@@ -62,7 +62,6 @@ public:
 	}
 };
 // User class
-
 class User {
 private:
 	std::string username;
@@ -106,6 +105,7 @@ public:
 			}
 		}
 	}
+	// not on list
 	if (!found) {
 		throw std::out_of_range("Equipment name doesn't exist in list.");
 		}
@@ -114,6 +114,51 @@ public:
 
 int main() {
 	Gym localGym;
+
+	// Something here
+
+	std::cout << "==== Gym Equipment Tracker App ====";
+
+	bool appRunning = true;
+	// loop for app
+	while(appRunning) {
+		std::cout << "\nMain Menu:\n";
+		std::cout << "1. Check Equipment List\n";
+		std::cout << "2. Take Equipment Item\n";
+		std::cout << "3. Exit Application\n";
+		std::cout << "Select option (1-3)";
+
+		// choices for app
+		int choice;
+		if (!(std::cin >> choice)) {
+			std::cin.clear();
+			std::cin.ignore(10000, '\n');
+			std::cout << "\nInvalid choice type. Try again and enter a choice number.";
+			continue;
+		std::cin.ignore();
+
+		if (choice == 1) {
+			localGym.checkList();
+		}
+		else if (choice == 2) {
+			std::cout << "Enter the exact equipment name to take: ";
+			std::string targetEquipment;
+			std::getline(std::cin, targetEquipment);
+
+			try {
+				localGym.takeItem(targetEquipment);
+			}
+			catch (constant std::exception& error) {
+				std::cerr << "\n[Notification] " << error.what() << "\n";
+				std::cout << "[System Recovery] Operation blocked safely. Returning to main menu.\n";
+			}
+		}
+		else if (choice == 3) {
+			std::cout << "\nExiting Gym Equipment Tracker App\n";
+			appRunning = false;
+		else {
+			std::cout << "\nInvalid menu option. Please select 1, 2, or 3.\n";
+		}
 
 	return 0;
 }
