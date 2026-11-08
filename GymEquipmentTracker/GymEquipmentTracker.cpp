@@ -192,6 +192,7 @@ int main() {
 				std::cerr << "\n[Notification] " << error.what() << "\n";
 				std::cout << "[System Recovery] Operation blocked safely. Returning to main menu.\n";
 			}
+		}
 		else if (choice == 4) {
 			std::cout << "\nExiting Gym Equipment Tracker App\n";
 			appRunning = false;
