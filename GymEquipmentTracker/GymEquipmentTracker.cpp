@@ -122,7 +122,7 @@ public:
 		for (auto& item : inventory) {
 			found = true;
 
-			if (item->getAvailability()) {
+			if (item->getAvailability() == true) {
 				throw std::runtime_error("Equipment is already in the gym equipment list.");
 			}
 
