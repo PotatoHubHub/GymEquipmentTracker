@@ -120,7 +120,9 @@ public:
 	void returnItem(const std::string& itemName) {
 		bool found = false;
 		for (auto& item : inventory) {
-			found = true;
+			if (item->getName() == itemName) {
+				found = true;
+			}
 
 			if (item->getAvailability() == true) {
 				throw std::runtime_error("Equipment is already in the gym equipment list.");
