@@ -122,15 +122,16 @@ public:
 		for (auto& item : inventory) {
 			if (item->getName() == itemName) {
 				found = true;
-			}
+			
 
-			if (item->getAvailability() == true) {
-				throw std::runtime_error("Equipment is already in the gym equipment list.");
+				if (item->getAvailability() == true) {
+					throw std::runtime_error("Equipment is already in the gym equipment list.");
+				}
+	
+				item->setAvailability(true);
+				std::cout << "\n>>> Success: You have returned the " << itemName << ".\n";
+				return;
 			}
-
-			item->setAvailability(true);
-			std::cout << "\n>>> Success: You have returned the " << itemName << ".\n";
-			return;
 		}
 		if (!found) {
 			throw std::out_of_range("Equipment name doesn't exist in the list.");
