@@ -116,6 +116,24 @@ public:
 			throw std::out_of_range("Equipment name doesn't exist in list.");
 		}
 	}
+
+	void returnItem(const std::string& itemName) {
+		bool found = false;
+		for (auto& item : inventory) {
+			found = true;
+
+			if (item->getAvailability()) {
+				throw std::runtime_error("Equipment is already in the gym equipment list.");
+			}
+
+			item->setAvailability(true);
+			std::cout << "\n>>> Success: You have returned the " << itemName << ".\n";
+			return;
+		}
+		if (!found) {
+			throw std::out_of_range("Equipment name doesn't exist in the list.");
+		}
+	}
 };
 
 int main() {
@@ -133,8 +151,9 @@ int main() {
 		std::cout << "\nMain Menu:\n";
 		std::cout << "1. Check Equipment List\n";
 		std::cout << "2. Take Equipment Item\n";
-		std::cout << "3. Exit Application\n";
-		std::cout << "Select option (1-3): ";
+		std::cout << "3. Return Equipment Item\n";
+		std::cout << "4. Exit Application\n";
+		std::cout << "Select option (1-4): ";
 
 		int choice;
 		if (!(std::cin >> choice)) {
@@ -162,6 +181,18 @@ int main() {
 			}
 		}
 		else if (choice == 3) {
+			std::cout << "Enter the exact equipment name to return: ";
+			std::string targetEquipment;
+			std::getline(std::cin, targetEquipment);
+
+			try {
+				localGym.returnItem(targetEquipment);
+			}
+			catch (const std::exception& error) {
+				std::cerr << "\n[Notification] " << error.what() << "\n";
+				std::cout << "[System Recovery] Operation blocked safely. Returning to main menu.\n";
+			}
+		else if (choice == 4) {
 			std::cout << "\nExiting Gym Equipment Tracker App\n";
 			appRunning = false;
 		}
