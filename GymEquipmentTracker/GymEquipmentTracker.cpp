@@ -144,7 +144,11 @@ int main() {
 
 	// rewrote the inventory for this one, might need to rewrite again next checkpoint
 	localGym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
-	localGym.addEquipment(std::make_unique<Status>("Dumbbell Set", "Strength"));
+	localGym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
+	localGym.addEquipment(std::make_unique<Status>("Dumbbells (10 lbs)", "Strength"));
+	localGym.addEquipment(std::make_unique<Status>("Dumbbells (20 lbs)", "Strength"));
+	localGym.addEquipment(std::make_unique<Status>("Dumbbells (40 lbs)", "Strength"));
+	localGym.addEquipment(std::make_unique<Status>("Leg Press Machine", "Strength"));
 	localGym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
 
 	std::cout << "==== Gym Equipment Tracker App ====\n";
@@ -207,11 +211,4 @@ int main() {
 
 	return 0;
 }
-// add an array to store gym equipment data first
-
-// something along the lines of function takeItem
-
-// accept user input, make sure case is exact, and then check if the item-
-// is available in the gym equipment array. If it is, mark it as taken and update the status. 
-// If not, inform the user that the item is not available.
-// test does this interfere with your work (if it does sry)
+// what exactly do we wanna do next here?
