@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="GymEquipmentTracker.vcxproj" />
+  <Project Path="GymEquipmentTracker.vcxproj" Id="307d58d4-2b71-4964-8f0f-14273acecddb" />
 </Solution>
