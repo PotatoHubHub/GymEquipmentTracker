@@ -1,8 +1,17 @@
-#include <iostream>
+#include <FL/Fl.H>
+#include <FL/Fl_Double_Window.H>
+#include <FL/Fl_Hold_Browser.H>
+#include <FL/Fl_Input.H>
+#include <FL/Fl_Button.H>
+#include <FL/Fl_Box.H>
+#include <FL/fl_ask.H>
+
 #include <string>
 #include <memory>
 #include <vector>
 #include <stdexcept>
+
+// this took forever to figure out how to make work properly
 
 // Equipment class
 class Equipment {
@@ -15,54 +24,34 @@ public:
 	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) {}
 	virtual ~Equipment() = default;
 
-	// Getters
-	std::string getName() const {
-		return name;
-	}
+	std::string getName() const { return name; }
+	std::string getCategory() const { return category; }
+	bool getAvailability() const { return isAvailable; }
+	void setAvailability(bool s) { isAvailable = s; }
 
-	std::string getCategory() const {
-		return category;
-	}
-
-	bool getAvailability() const {
-		return isAvailable;
-	}
-
-	void setAvailability(bool s) {
-		isAvailable = s;
-	}
-
-	// Pure Virtual Function
-	virtual void displayInfo() const = 0;
+	// modified to work with gui, still has that polymorphism
+	virtual std::string displayInfo() const = 0;
 };
 
 // Derived class 1
 class EquipmentCategory : public Equipment {
 public:
-	EquipmentCategory(std::string n, std::string cat)
-		: Equipment(n, cat) {
-	}
+	EquipmentCategory(std::string n, std::string cat) : Equipment(n, cat) {}
 
-	// Override
-	void displayInfo() const override {
-		std::cout << "[Category] Item: " << name
-			<< " | Type: " << category
-			<< " | Status: " << (isAvailable ? "Available" : "In Use") << "\n";
+	std::string displayInfo() const override {
+		return "[Category] Item: " + name + " | Type: " + category +
+			" | Status: " + (isAvailable ? "Available" : "In Use");
 	}
 };
 
-// Derived class 2 
+// Derived class 2
 class Status : public Equipment {
 public:
-	Status(std::string n, std::string cat)
-		: Equipment(n, cat) {
-	}
+	Status(std::string n, std::string cat) : Equipment(n, cat) {}
 
-	// Override
-	void displayInfo() const override {
-		std::cout << "[Status] Item: " << name
-			<< " | Status: " << (isAvailable ? "Available" : "In Use")
-			<< " | Group: " << category << "\n";
+	std::string displayInfo() const override {
+		return "[Status] Item: " + name + " | Status: " + (isAvailable ? "Available" : "In Use") +
+			" | Group: " + category;
 	}
 };
 
@@ -72,15 +61,12 @@ private:
 	std::string username;
 public:
 	User(std::string u) : username(u) {}
-	std::string getUsername() const {
-		return username;
-	}
+	std::string getUsername() const { return username; }
 };
 
 // Gym class
 class Gym {
 private:
-	// RUNTIME POLYMORPHISM ALERT ! ! ! (also the gym equipment array)
 	std::vector<std::unique_ptr<Equipment>> inventory;
 
 public:
@@ -88,127 +74,162 @@ public:
 		inventory.push_back(std::move(item));
 	}
 
-	void checkList() const {
-		std::cout << "\n--- Gym Equipment List ---\n";
-		for (const auto& item : inventory) {
-			item->displayInfo(); // THIS ONE RIGHT HERE THAT'S THE POLYMORPHISM
-		}
-		std::cout << "-----------------------------\n";
-	}
+	size_t size() const { return inventory.size(); }
+
+	const Equipment& at(size_t i) const { return *inventory.at(i); }
 
 	void takeItem(const std::string& itemName) {
-		bool found = false;
 		for (auto& item : inventory) {
 			if (item->getName() == itemName) {
-				found = true;
-
 				if (!item->getAvailability()) {
 					throw std::runtime_error("Equipment is currently unavailable.");
 				}
-
 				item->setAvailability(false);
-				std::cout << "\n>>> Success: You have taken the " << itemName << ".\n";
 				return;
 			}
 		}
-
-		if (!found) {
-			throw std::out_of_range("Equipment name doesn't exist in list.");
-		}
+		throw std::out_of_range("Equipment name doesn't exist in list.");
 	}
 
 	void returnItem(const std::string& itemName) {
-		bool found = false;
 		for (auto& item : inventory) {
 			if (item->getName() == itemName) {
-				found = true;
-			
-
-				if (item->getAvailability() == true) {
+				if (item->getAvailability()) {
 					throw std::runtime_error("Equipment is already in the gym equipment list.");
 				}
-	
 				item->setAvailability(true);
-				std::cout << "\n>>> Success: You have returned the " << itemName << ".\n";
 				return;
 			}
 		}
-		if (!found) {
-			throw std::out_of_range("Equipment name doesn't exist in the list.");
-		}
+		throw std::out_of_range("Equipment name doesn't exist in the list.");
 	}
 };
 
-int main() {
-	Gym localGym;
+// the gui stuff
 
-	// rewrote the inventory for this one, might need to rewrite again next checkpoint
-	localGym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
-	localGym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
-	localGym.addEquipment(std::make_unique<Status>("Dumbbells (10 lbs)", "Strength"));
-	localGym.addEquipment(std::make_unique<Status>("Dumbbells (20 lbs)", "Strength"));
-	localGym.addEquipment(std::make_unique<Status>("Dumbbells (40 lbs)", "Strength"));
-	localGym.addEquipment(std::make_unique<Status>("Leg Press Machine", "Strength"));
-	localGym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
+class GymApp {
+public:
+	Gym gym;
 
-	std::cout << "==== Gym Equipment Tracker App ====\n";
+	Fl_Double_Window* window;
+	Fl_Hold_Browser* list;
+	Fl_Input* nameInput;
+	Fl_Button* takeBtn;
+	Fl_Button* returnBtn;
+	Fl_Button* exitBtn;
+	Fl_Box* statusBox;
 
-	bool appRunning = true;
-	while (appRunning) {
-		std::cout << "\nMain Menu:\n";
-		std::cout << "1. Check Equipment List\n";
-		std::cout << "2. Take Equipment Item\n";
-		std::cout << "3. Return Equipment Item\n";
-		std::cout << "4. Exit Application\n";
-		std::cout << "Select option (1-4): ";
+	GymApp() {
+		// Inventory
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells (10 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells (20 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells (40 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Leg Press Machine", "Strength"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
 
-		int choice;
-		if (!(std::cin >> choice)) {
-			std::cin.clear();
-			std::cin.ignore(10000, '\n');
-			std::cout << "\nInvalid choice type. Try again and enter a choice number.\n";
-			continue;
-		}
-		std::cin.ignore(10000, '\n');
+		buildWindow();
+		refreshList();
+	}
 
-		if (choice == 1) {
-			localGym.checkList();
-		}
-		else if (choice == 2) {
-			std::cout << "Enter the exact equipment name to take: ";
-			std::string targetEquipment;
-			std::getline(std::cin, targetEquipment);
+	void buildWindow() {
+		window = new Fl_Double_Window(640, 470, "Gym Equipment Tracker App");
 
-			try {
-				localGym.takeItem(targetEquipment);
-			}
-			catch (const std::exception& error) {
-				std::cerr << "\n[Notification] " << error.what() << "\n";
-				std::cout << "[System Recovery] Operation blocked safely. Returning to main menu.\n";
-			}
-		}
-		else if (choice == 3) {
-			std::cout << "Enter the exact equipment name to return: ";
-			std::string targetEquipment;
-			std::getline(std::cin, targetEquipment);
+		Fl_Box* title = new Fl_Box(20, 10, 600, 30, "Gym Equipment List");
+		title->labelfont(FL_BOLD);
+		title->labelsize(18);
 
-			try {
-				localGym.returnItem(targetEquipment);
-			}
-			catch (const std::exception& error) {
-				std::cerr << "\n[Notification] " << error.what() << "\n";
-				std::cout << "[System Recovery] Operation blocked safely. Returning to main menu.\n";
-			}
-		}
-		else if (choice == 4) {
-			std::cout << "\nExiting Gym Equipment Tracker App\n";
-			appRunning = false;
-		}
-		else {
-			std::cout << "\nInvalid menu option. Please select 1, 2, or 3.\n";
+		list = new Fl_Hold_Browser(20, 50, 600, 230);
+		list->callback(onSelect, this);
+		list->textsize(14);
+
+		nameInput = new Fl_Input(20, 305, 600, 30, "Equipment name (click a row or type exact name):");
+		nameInput->align(FL_ALIGN_TOP_LEFT);
+
+		takeBtn = new Fl_Button(20, 350, 190, 40, "Take Equipment Item");
+		takeBtn->callback(onTake, this);
+
+		returnBtn = new Fl_Button(225, 350, 190, 40, "Return Equipment Item");
+		returnBtn->callback(onReturn, this);
+
+		exitBtn = new Fl_Button(430, 350, 190, 40, "Exit Application");
+		exitBtn->callback(onExit, this);
+
+		statusBox = new Fl_Box(20, 405, 600, 50, "Welcome! Select an item to take or return.");
+		statusBox->box(FL_DOWN_BOX);
+		statusBox->align(FL_ALIGN_INSIDE | FL_ALIGN_LEFT | FL_ALIGN_WRAP);
+
+		window->end();
+		window->callback(onExit, this); // close da window
+	}
+
+	// rebuilds browser from inventory
+	void refreshList() {
+		list->clear();
+		for (size_t i = 0; i < gym.size(); ++i) {
+			const Equipment& item = gym.at(i);
+			int color = item.getAvailability() ? FL_DARK_GREEN : FL_RED;
+			// line color
+			std::string line = "@C" + std::to_string(color) + "@." + item.displayInfo();
+			list->add(line.c_str());
 		}
 	}
 
+	void setStatus(const std::string& msg, bool isError) {
+		statusBox->copy_label(msg.c_str());
+		statusBox->labelcolor(isError ? FL_RED : FL_DARK_GREEN);
+		statusBox->redraw();
+	}
+
+	// more callback stuff
+	static void onSelect(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		int row = app->list->value(); 
+		if (row > 0) {
+			app->nameInput->value(app->gym.at(row - 1).getName().c_str());
+		}
+	}
+
+	static void onTake(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		std::string target = app->nameInput->value();
+		try {
+			app->gym.takeItem(target);
+			app->setStatus("Success: You have taken the " + target + ".", false);
+		}
+		catch (const std::exception& error) {
+			app->setStatus(std::string("[Notification] ") + error.what(), true);
+			fl_alert("%s", error.what());
+		}
+		app->refreshList();
+	}
+
+	static void onReturn(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		std::string target = app->nameInput->value();
+		try {
+			app->gym.returnItem(target);
+			app->setStatus("Success: You have returned the " + target + ".", false);
+		}
+		catch (const std::exception& error) {
+			app->setStatus(std::string("[Notification] ") + error.what(), true);
+			fl_alert("%s", error.what());
+		}
+		app->refreshList();
+	}
+
+	static void onExit(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		app->window->hide(); // ends program i think
+	}
+};
+
+int main(int argc, char** argv) {
+	GymApp app;
+	app.window->show(argc, argv);
+	return Fl::run();
+}
 	return 0;
 }
 // what exactly do we wanna do next here?
