@@ -229,7 +229,7 @@ int main(int argc, char** argv) {
 	GymApp app;
 	app.window->show(argc, argv);
 	return Fl::run();
-}
+	
 	return 0;
 }
 // what exactly do we wanna do next here?
