@@ -123,10 +123,24 @@ public:
 		// Inventory
 		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
 		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells (10 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells (20 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells (40 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Leg Press Machine", "Strength"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 3", "Cardio"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 4", "Cardio"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 5", "Cardio"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 6", "Cardio"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 7", "Cardio"));
+		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 8", "Cardio"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (10 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (20 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (40 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (10 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (20 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (40 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (10 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (20 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (40 lbs)", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Leg Press Machine 1", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Leg Press Machine 2", "Strength"));
+		gym.addEquipment(std::make_unique<Status>("Leg Press Machine 3", "Strength"));
 		gym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
 
 		buildWindow();
@@ -185,7 +199,7 @@ public:
 	// more callback stuff
 	static void onSelect(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
-		int row = app->list->value(); 
+		int row = app->list->value();
 		if (row > 0) {
 			app->nameInput->value(app->gym.at(row - 1).getName().c_str());
 		}
@@ -229,7 +243,7 @@ int main(int argc, char** argv) {
 	GymApp app;
 	app.window->show(argc, argv);
 	return Fl::run();
-	
+
 	return 0;
 }
 // what exactly do we wanna do next here?
