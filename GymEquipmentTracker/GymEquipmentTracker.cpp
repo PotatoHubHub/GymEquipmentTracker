@@ -10,8 +10,15 @@
 #include <memory>
 #include <vector>
 #include <stdexcept>
+#include <algorithm>
+#include <cctype>
 
-// gog help ye all who enter here
+// case sensitive search stuff
+static std::string toLower(std::string s) {
+	std::transform(s.begin(), s.end(), s.begin(),
+		[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	return s;
+}
 
 // Equipment class
 class Equipment {
@@ -23,7 +30,7 @@ protected:
 public:
 	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) {}
 
-	// overload here 
+	// heres an overload
 	Equipment(std::string n) : Equipment(n, "General") {}
 
 	virtual ~Equipment() = default;
@@ -40,7 +47,7 @@ public:
 class EquipmentCategory : public Equipment {
 public:
 	EquipmentCategory(std::string n, std::string cat) : Equipment(n, cat) {}
-	EquipmentCategory(std::string n) : Equipment(n) {}   // heres one (overload)
+	EquipmentCategory(std::string n) : Equipment(n) {}   
 
 	std::string displayInfo() const override {
 		return "[Category] Item: " + name + " | Type: " + category +
@@ -52,7 +59,7 @@ public:
 class Status : public Equipment {
 public:
 	Status(std::string n, std::string cat) : Equipment(n, cat) {}
-	Status(std::string n) : Equipment(n) {}              // (another overload)
+	Status(std::string n) : Equipment(n) {}              
 
 	std::string displayInfo() const override {
 		return "[Status] Item: " + name + " | Status: " + (isAvailable ? "Available" : "In Use") +
@@ -91,7 +98,7 @@ public:
 
 	const Equipment& at(size_t i) const { return *inventory.at(i); }
 
-	// some more various overload usage
+	//take by index (used with the selected browser row)
 	void takeItem(size_t index) {
 		if (index >= inventory.size()) {
 			throw std::out_of_range("Equipment index doesn't exist in list.");
@@ -103,7 +110,7 @@ public:
 		item.setAvailability(false);
 	}
 
-	// overload usage once again
+	//take by name (typed into the input box)
 	void takeItem(const std::string& itemName) {
 		takeItem(indexOf(itemName));
 	}
@@ -123,7 +130,7 @@ public:
 		returnItem(indexOf(itemName));
 	}
 
-	// overload to count items
+	// count available items overall...
 	size_t countAvailable() const {
 		size_t n = 0;
 		for (const auto& item : inventory) {
@@ -132,13 +139,40 @@ public:
 		return n;
 	}
 
-	// also for counting within a category
+	// ...or within one category
 	size_t countAvailable(const std::string& category) const {
 		size_t n = 0;
 		for (const auto& item : inventory) {
 			if (item->getCategory() == category && item->getAvailability()) ++n;
 		}
 		return n;
+	}
+
+	// search list
+	std::vector<size_t> search(const std::string& term) const {
+		std::vector<size_t> results;
+		std::string t = toLower(term);
+		for (size_t i = 0; i < inventory.size(); ++i) {
+			if (t.empty() ||
+				toLower(inventory[i]->getName()).find(t) != std::string::npos ||
+				toLower(inventory[i]->getCategory()).find(t) != std::string::npos) {
+				results.push_back(i);
+			}
+		}
+		return results;
+	}
+
+	// ...or restrict the search to one exact category (name match only)
+	std::vector<size_t> search(const std::string& term, const std::string& category) const {
+		std::vector<size_t> results;
+		std::string t = toLower(term);
+		for (size_t i = 0; i < inventory.size(); ++i) {
+			if (inventory[i]->getCategory() != category) continue;
+			if (t.empty() || toLower(inventory[i]->getName()).find(t) != std::string::npos) {
+				results.push_back(i);
+			}
+		}
+		return results;
 	}
 };
 
@@ -150,11 +184,18 @@ public:
 
 	Fl_Double_Window* window;
 	Fl_Hold_Browser* list;
+	Fl_Input* searchInput;
+	Fl_Button* searchBtn;
+	Fl_Button* clearBtn;
 	Fl_Input* nameInput;
 	Fl_Button* takeBtn;
 	Fl_Button* returnBtn;
 	Fl_Button* exitBtn;
 	Fl_Box* statusBox;
+
+	// maps browser row (row - 1) -> inventory index, so filtering doesn't break selection
+	std::vector<size_t> visible;
+	std::string currentFilter;
 
 	GymApp() {
 		// Inventory
@@ -185,29 +226,40 @@ public:
 	}
 
 	void buildWindow() {
-		window = new Fl_Double_Window(640, 470, "Gym Equipment Tracker App");
+		window = new Fl_Double_Window(640, 495, "Gym Equipment Tracker App");
 
 		Fl_Box* title = new Fl_Box(20, 10, 600, 30, "Gym Equipment List");
 		title->labelfont(FL_BOLD);
 		title->labelsize(18);
 
-		list = new Fl_Hold_Browser(20, 50, 600, 230);
+		// search row, right under the title (label sits to the left of the box)
+		searchInput = new Fl_Input(90, 48, 320, 30, "Search:");
+		searchInput->when(FL_WHEN_ENTER_KEY | FL_WHEN_NOT_CHANGED);
+		searchInput->callback(onSearch, this);   // pressing Enter searches
+
+		searchBtn = new Fl_Button(420, 48, 95, 30, "Search");
+		searchBtn->callback(onSearch, this);
+
+		clearBtn = new Fl_Button(525, 48, 95, 30, "Clear");
+		clearBtn->callback(onClear, this);
+
+		list = new Fl_Hold_Browser(20, 90, 600, 200);
 		list->callback(onSelect, this);
 		list->textsize(14);
 
-		nameInput = new Fl_Input(20, 305, 600, 30, "Equipment name (click a row or type exact name):");
+		nameInput = new Fl_Input(20, 325, 600, 30, "Equipment name (click a row or type exact name):");
 		nameInput->align(FL_ALIGN_TOP_LEFT);
 
-		takeBtn = new Fl_Button(20, 350, 190, 40, "Take Equipment Item");
+		takeBtn = new Fl_Button(20, 375, 190, 40, "Take Equipment Item");
 		takeBtn->callback(onTake, this);
 
-		returnBtn = new Fl_Button(225, 350, 190, 40, "Return Equipment Item");
+		returnBtn = new Fl_Button(225, 375, 190, 40, "Return Equipment Item");
 		returnBtn->callback(onReturn, this);
 
-		exitBtn = new Fl_Button(430, 350, 190, 40, "Exit Application");
+		exitBtn = new Fl_Button(430, 375, 190, 40, "Exit Application");
 		exitBtn->callback(onExit, this);
 
-		statusBox = new Fl_Box(20, 405, 600, 50, "Welcome! Select an item to take or return.");
+		statusBox = new Fl_Box(20, 430, 600, 50, "Welcome! Select an item to take or return.");
 		statusBox->box(FL_DOWN_BOX);
 		statusBox->align(FL_ALIGN_INSIDE | FL_ALIGN_LEFT | FL_ALIGN_WRAP);
 
@@ -215,39 +267,78 @@ public:
 		window->callback(onExit, this);
 	}
 
-	// rebuilds browser from inventory
+	// rebuilds browser from inventory, showing only items matching currentFilter
 	void refreshList() {
 		list->clear();
-		for (size_t i = 0; i < gym.size(); ++i) {
-			const Equipment& item = gym.at(i);
+		visible = gym.search(currentFilter);
+		for (size_t idx : visible) {
+			const Equipment& item = gym.at(idx);
 			int color = item.getAvailability() ? FL_DARK_GREEN : FL_RED;
 			std::string line = "@C" + std::to_string(color) + "@." + item.displayInfo();
 			list->add(line.c_str());
 		}
 	}
 
-	// overload error flag
+	// explicit error flag
 	void setStatus(const std::string& msg, bool isError) {
 		statusBox->copy_label(msg.c_str());
 		statusBox->labelcolor(isError ? FL_RED : FL_DARK_GREEN);
 		statusBox->redraw();
 	}
 
+	// success message (no flag needed)
 	void setStatus(const std::string& msg) {
 		setStatus(msg, false);
 	}
 
+	// message plus a live "available" count for a category
 	void setStatus(const std::string& msg, const std::string& category) {
 		setStatus(msg + "  [" + category + " available: " +
 			std::to_string(gym.countAvailable(category)) + "]", false);
 	}
 
+	// returns the inventory index of the selected row, or throws if nothing selected
+	size_t selectedIndex() const {
+		int row = list->value();
+		if (row <= 0 || static_cast<size_t>(row) > visible.size()) {
+			throw std::invalid_argument("Select a row or type an equipment name.");
+		}
+		return visible[static_cast<size_t>(row - 1)];
+	}
+
+	// callbacks
 	static void onSelect(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
 		int row = app->list->value();
-		if (row > 0) {
-			app->nameInput->value(app->gym.at(row - 1).getName().c_str());
+		if (row > 0 && static_cast<size_t>(row) <= app->visible.size()) {
+			app->nameInput->value(app->gym.at(app->visible[row - 1]).getName().c_str());
 		}
+	}
+
+	static void onSearch(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		app->currentFilter = app->searchInput->value();
+		app->refreshList();
+
+		size_t found = app->visible.size();
+		if (app->currentFilter.empty()) {
+			app->setStatus("Showing all " + std::to_string(found) + " items.");
+		}
+		else if (found == 0) {
+			app->setStatus("No equipment found matching \"" + app->currentFilter + "\".", true);
+		}
+		else {
+			app->setStatus("Found " + std::to_string(found) + " item(s) matching \"" +
+				app->currentFilter + "\".");
+		}
+	}
+
+	static void onClear(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		app->searchInput->value("");
+		app->currentFilter.clear();
+		app->refreshList();
+		app->setStatus("Search cleared. Showing all " + std::to_string(app->visible.size()) + " items.");
 	}
 
 	static void onTake(Fl_Widget*, void* data) {
@@ -260,9 +351,7 @@ public:
 				category = app->categoryOf(target);
 			}
 			else {
-				int row = app->list->value();
-				if (row <= 0) throw std::invalid_argument("Select a row or type an equipment name.");
-				size_t idx = static_cast<size_t>(row - 1);
+				size_t idx = app->selectedIndex();
 				app->gym.takeItem(idx);                          // by index
 				target = app->gym.at(idx).getName();
 				category = app->gym.at(idx).getCategory();
@@ -286,9 +375,7 @@ public:
 				category = app->categoryOf(target);
 			}
 			else {
-				int row = app->list->value();
-				if (row <= 0) throw std::invalid_argument("Select a row or type an equipment name.");
-				size_t idx = static_cast<size_t>(row - 1);
+				size_t idx = app->selectedIndex();
 				app->gym.returnItem(idx);                        // by index
 				target = app->gym.at(idx).getName();
 				category = app->gym.at(idx).getCategory();
