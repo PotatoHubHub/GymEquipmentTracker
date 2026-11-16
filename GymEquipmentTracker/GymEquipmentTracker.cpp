@@ -11,7 +11,7 @@
 #include <vector>
 #include <stdexcept>
 
-// this took forever to figure out how to make work properly
+// gog help ye all who enter here
 
 // Equipment class
 class Equipment {
@@ -22,6 +22,10 @@ protected:
 
 public:
 	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) {}
+
+	// overload here 
+	Equipment(std::string n) : Equipment(n, "General") {}
+
 	virtual ~Equipment() = default;
 
 	std::string getName() const { return name; }
@@ -29,7 +33,6 @@ public:
 	bool getAvailability() const { return isAvailable; }
 	void setAvailability(bool s) { isAvailable = s; }
 
-	// modified to work with gui, still has that polymorphism
 	virtual std::string displayInfo() const = 0;
 };
 
@@ -37,6 +40,7 @@ public:
 class EquipmentCategory : public Equipment {
 public:
 	EquipmentCategory(std::string n, std::string cat) : Equipment(n, cat) {}
+	EquipmentCategory(std::string n) : Equipment(n) {}   // heres one (overload)
 
 	std::string displayInfo() const override {
 		return "[Category] Item: " + name + " | Type: " + category +
@@ -48,6 +52,7 @@ public:
 class Status : public Equipment {
 public:
 	Status(std::string n, std::string cat) : Equipment(n, cat) {}
+	Status(std::string n) : Equipment(n) {}              // (another overload)
 
 	std::string displayInfo() const override {
 		return "[Status] Item: " + name + " | Status: " + (isAvailable ? "Available" : "In Use") +
@@ -69,6 +74,14 @@ class Gym {
 private:
 	std::vector<std::unique_ptr<Equipment>> inventory;
 
+	// helper: finds index by name, throws if missing
+	size_t indexOf(const std::string& itemName) const {
+		for (size_t i = 0; i < inventory.size(); ++i) {
+			if (inventory[i]->getName() == itemName) return i;
+		}
+		throw std::out_of_range("Equipment name doesn't exist in list.");
+	}
+
 public:
 	void addEquipment(std::unique_ptr<Equipment> item) {
 		inventory.push_back(std::move(item));
@@ -78,30 +91,54 @@ public:
 
 	const Equipment& at(size_t i) const { return *inventory.at(i); }
 
-	void takeItem(const std::string& itemName) {
-		for (auto& item : inventory) {
-			if (item->getName() == itemName) {
-				if (!item->getAvailability()) {
-					throw std::runtime_error("Equipment is currently unavailable.");
-				}
-				item->setAvailability(false);
-				return;
-			}
+	// some more various overload usage
+	void takeItem(size_t index) {
+		if (index >= inventory.size()) {
+			throw std::out_of_range("Equipment index doesn't exist in list.");
 		}
-		throw std::out_of_range("Equipment name doesn't exist in list.");
+		Equipment& item = *inventory[index];
+		if (!item.getAvailability()) {
+			throw std::runtime_error("Equipment is currently unavailable.");
+		}
+		item.setAvailability(false);
+	}
+
+	// overload usage once again
+	void takeItem(const std::string& itemName) {
+		takeItem(indexOf(itemName));
+	}
+
+	void returnItem(size_t index) {
+		if (index >= inventory.size()) {
+			throw std::out_of_range("Equipment index doesn't exist in list.");
+		}
+		Equipment& item = *inventory[index];
+		if (item.getAvailability()) {
+			throw std::runtime_error("Equipment is already in the gym equipment list.");
+		}
+		item.setAvailability(true);
 	}
 
 	void returnItem(const std::string& itemName) {
-		for (auto& item : inventory) {
-			if (item->getName() == itemName) {
-				if (item->getAvailability()) {
-					throw std::runtime_error("Equipment is already in the gym equipment list.");
-				}
-				item->setAvailability(true);
-				return;
-			}
+		returnItem(indexOf(itemName));
+	}
+
+	// overload to count items
+	size_t countAvailable() const {
+		size_t n = 0;
+		for (const auto& item : inventory) {
+			if (item->getAvailability()) ++n;
 		}
-		throw std::out_of_range("Equipment name doesn't exist in the list.");
+		return n;
+	}
+
+	// also for counting within a category
+	size_t countAvailable(const std::string& category) const {
+		size_t n = 0;
+		for (const auto& item : inventory) {
+			if (item->getCategory() == category && item->getAvailability()) ++n;
+		}
+		return n;
 	}
 };
 
@@ -175,7 +212,7 @@ public:
 		statusBox->align(FL_ALIGN_INSIDE | FL_ALIGN_LEFT | FL_ALIGN_WRAP);
 
 		window->end();
-		window->callback(onExit, this); // close da window
+		window->callback(onExit, this);
 	}
 
 	// rebuilds browser from inventory
@@ -184,19 +221,27 @@ public:
 		for (size_t i = 0; i < gym.size(); ++i) {
 			const Equipment& item = gym.at(i);
 			int color = item.getAvailability() ? FL_DARK_GREEN : FL_RED;
-			// line color
 			std::string line = "@C" + std::to_string(color) + "@." + item.displayInfo();
 			list->add(line.c_str());
 		}
 	}
 
+	// overload error flag
 	void setStatus(const std::string& msg, bool isError) {
 		statusBox->copy_label(msg.c_str());
 		statusBox->labelcolor(isError ? FL_RED : FL_DARK_GREEN);
 		statusBox->redraw();
 	}
 
-	// more callback stuff
+	void setStatus(const std::string& msg) {
+		setStatus(msg, false);
+	}
+
+	void setStatus(const std::string& msg, const std::string& category) {
+		setStatus(msg + "  [" + category + " available: " +
+			std::to_string(gym.countAvailable(category)) + "]", false);
+	}
+
 	static void onSelect(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
 		int row = app->list->value();
@@ -209,8 +254,20 @@ public:
 		GymApp* app = static_cast<GymApp*>(data);
 		std::string target = app->nameInput->value();
 		try {
-			app->gym.takeItem(target);
-			app->setStatus("Success: You have taken the " + target + ".", false);
+			std::string category;
+			if (!target.empty()) {
+				app->gym.takeItem(target);                       // by name
+				category = app->categoryOf(target);
+			}
+			else {
+				int row = app->list->value();
+				if (row <= 0) throw std::invalid_argument("Select a row or type an equipment name.");
+				size_t idx = static_cast<size_t>(row - 1);
+				app->gym.takeItem(idx);                          // by index
+				target = app->gym.at(idx).getName();
+				category = app->gym.at(idx).getCategory();
+			}
+			app->setStatus("Success: You have taken the " + target + ".", category);
 		}
 		catch (const std::exception& error) {
 			app->setStatus(std::string("[Notification] ") + error.what(), true);
@@ -223,8 +280,20 @@ public:
 		GymApp* app = static_cast<GymApp*>(data);
 		std::string target = app->nameInput->value();
 		try {
-			app->gym.returnItem(target);
-			app->setStatus("Success: You have returned the " + target + ".", false);
+			std::string category;
+			if (!target.empty()) {
+				app->gym.returnItem(target);                     // by name
+				category = app->categoryOf(target);
+			}
+			else {
+				int row = app->list->value();
+				if (row <= 0) throw std::invalid_argument("Select a row or type an equipment name.");
+				size_t idx = static_cast<size_t>(row - 1);
+				app->gym.returnItem(idx);                        // by index
+				target = app->gym.at(idx).getName();
+				category = app->gym.at(idx).getCategory();
+			}
+			app->setStatus("Success: You have returned the " + target + ".", category);
 		}
 		catch (const std::exception& error) {
 			app->setStatus(std::string("[Notification] ") + error.what(), true);
@@ -235,7 +304,16 @@ public:
 
 	static void onExit(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
-		app->window->hide(); // ends program i think
+		app->window->hide();
+	}
+
+private:
+	// helper: look up an item's category by name
+	std::string categoryOf(const std::string& itemName) const {
+		for (size_t i = 0; i < gym.size(); ++i) {
+			if (gym.at(i).getName() == itemName) return gym.at(i).getCategory();
+		}
+		return "General";
 	}
 };
 
@@ -243,7 +321,4 @@ int main(int argc, char** argv) {
 	GymApp app;
 	app.window->show(argc, argv);
 	return Fl::run();
-
-	return 0;
 }
-// what exactly do we wanna do next here?
