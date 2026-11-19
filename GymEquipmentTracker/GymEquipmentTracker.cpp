@@ -239,6 +239,7 @@ public:
 	Fl_Button* returnBtn;
 	Fl_Button* exitBtn;
 	Fl_Box* statusBox;
+	Fl_Button* testBadFileBtn;
 
 	// maps browser row (row - 1) -> inventory index, so filtering doesn't break selection
 	std::vector<size_t> visible;
@@ -309,6 +310,8 @@ public:
 
 		returnBtn = new Fl_Button(225, 375, 190, 40, "Return Equipment Item");
 		returnBtn->callback(onReturn, this);
+
+		
 
 		exitBtn = new Fl_Button(430, 375, 190, 40, "Exit Application");
 		exitBtn->callback(onExit, this);
