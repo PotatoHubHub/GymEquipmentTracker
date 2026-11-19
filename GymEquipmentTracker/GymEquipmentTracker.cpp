@@ -10,6 +10,8 @@
 #include <memory>
 #include <vector>
 #include <stdexcept>
+#include <fstream>
+#include <sstream>
 #include <algorithm>
 #include <cctype>
 
@@ -130,6 +132,50 @@ public:
 		returnItem(indexOf(itemName));
 	}
 
+	// Persistence
+	void saveToFile(const std::string& filename) const {
+		std::ofstream out(filename);
+		if (!out) {
+			throw std::runtime_error("Could not open file for saving: " + filename);
+		}
+		for (const auto& item : inventory) {
+			std::string typeTag = (dynamic_cast<const EquipmentCategory*>(item.get()) != nullptr) ? "Category" : "Status";
+			out << typeTag << "|"
+				     << item->getName() << "|"
+					 << item->getCategory() << "|"
+				     << (item->getAvailability() ? "1" : "0") << "\n";
+		}
+	}
+
+	void loadFromFile(const std::string& filename) {
+		std::ifstream in(filename);
+		if (!in) {
+			throw std::runtime_error("Save file not found: " + filename);
+		}
+		std::vector<std::unique_ptr<Equipment>> tempInventory;
+		std::string line;
+		while (std::getline(in, line)) {
+			if (line.empty()) continue;
+			std::stringstream ss(line);
+			std::string typeTag;
+			std::string itemName;
+			std::string itemCategory;
+			std::string availFlag;
+			if(!std::getline(ss, typeTag, '|') ||
+				    !std::getline(ss, itemName, '|') ||
+				    !std::getline(ss, itemCategory, '|') ||
+				    !std::getline(ss, availFlag, '|')) {
+				    throw std::runtime_error("Malformed record in save file.");
+			}
+			std::unique_ptr<Equipment> eq = (typeTag == "Category")
+					? std::unique_ptr<Equipment>(std::make_unique<EquipmentCategory>(itemName, itemCategory))
+					: std::unique_ptr<Equipment>(std::make_unique<Status>(itemName, itemCategory));
+			eq->setAvailability(availFlag == "1");
+			tempInventory.push_back(std::move(eq));
+		}
+		inventory = std::move(tempInventory);
+	}
+
 	// count available items overall...
 	size_t countAvailable() const {
 		size_t n = 0;
@@ -181,6 +227,7 @@ public:
 class GymApp {
 public:
 	Gym gym;
+	std::string saveFile = "gym_equipment.txt";
 
 	Fl_Double_Window* window;
 	Fl_Hold_Browser* list;
@@ -199,28 +246,35 @@ public:
 
 	GymApp() {
 		// Inventory
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 3", "Cardio"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 4", "Cardio"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 5", "Cardio"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 6", "Cardio"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 7", "Cardio"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 8", "Cardio"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (10 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (20 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (40 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (10 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (20 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (40 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (10 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (20 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (40 lbs)", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Leg Press Machine 1", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Leg Press Machine 2", "Strength"));
-		gym.addEquipment(std::make_unique<Status>("Leg Press Machine 3", "Strength"));
-		gym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
+		try {
+				gym.loadFromFile(saveFile);
+		}
+		catch (const std::exception&) {
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 3", "Cardio"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 4", "Cardio"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 5", "Cardio"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 6", "Cardio"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 7", "Cardio"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 8", "Cardio"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (10 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (20 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (40 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (10 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (20 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (40 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (10 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (20 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (40 lbs)", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Leg Press Machine 1", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Leg Press Machine 2", "Strength"));
+			   gym.addEquipment(std::make_unique<Status>("Leg Press Machine 3", "Strength"));
+			   gym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
+			   gym.saveToFile(saveFile);
 
+		}
+		
 		buildWindow();
 		refreshList();
 	}
@@ -356,6 +410,7 @@ public:
 				target = app->gym.at(idx).getName();
 				category = app->gym.at(idx).getCategory();
 			}
+			app->gym.saveToFile(app->saveFile);
 			app->setStatus("Success: You have taken the " + target + ".", category);
 		}
 		catch (const std::exception& error) {
@@ -380,6 +435,7 @@ public:
 				target = app->gym.at(idx).getName();
 				category = app->gym.at(idx).getCategory();
 			}
+			app->gym.saveToFile(app->saveFile);
 			app->setStatus("Success: You have returned the " + target + ".", category);
 		}
 		catch (const std::exception& error) {
