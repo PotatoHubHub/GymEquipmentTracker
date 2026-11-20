@@ -167,9 +167,21 @@ public:
 				    !std::getline(ss, availFlag, '|')) {
 				    throw std::runtime_error("Malformed record in save file.");
 			}
-			std::unique_ptr<Equipment> eq = (typeTag == "Category")
-					? std::unique_ptr<Equipment>(std::make_unique<EquipmentCategory>(itemName, itemCategory))
-					: std::unique_ptr<Equipment>(std::make_unique<Status>(itemName, itemCategory));
+			if (availFlag != "0" && availFlag != "1") {
+				throw std::runtime_error("Invalid availability flag in save file.");
+			}
+
+			std::unique_ptr<Equipment> eq;
+			if (typeTag == "Category") {
+				eq = std::make_unique<EquipmentCategory>(itemName, itemCategory);
+			}
+			else if (typeTag == "Status") {
+				eq = std::make_unique<Status>(itemName, itemCategory);
+			}
+			else {
+				throw std::runtime_error("Unknown equipment type in save file.");
+			}
+
 			eq->setAvailability(availFlag == "1");
 			tempInventory.push_back(std::move(eq));
 		}
@@ -281,7 +293,7 @@ public:
 	}
 
 	void buildWindow() {
-		window = new Fl_Double_Window(640, 495, "Gym Equipment Tracker App");
+		window = new Fl_Double_Window(640, 535, "Gym Equipment Tracker App");
 
 		Fl_Box* title = new Fl_Box(20, 10, 600, 30, "Gym Equipment List");
 		title->labelfont(FL_BOLD);
@@ -311,14 +323,15 @@ public:
 		returnBtn = new Fl_Button(225, 375, 190, 40, "Return Equipment Item");
 		returnBtn->callback(onReturn, this);
 
-		
-
 		exitBtn = new Fl_Button(430, 375, 190, 40, "Exit Application");
 		exitBtn->callback(onExit, this);
 
 		statusBox = new Fl_Box(20, 430, 600, 50, "Welcome! Select an item to take or return.");
 		statusBox->box(FL_DOWN_BOX);
 		statusBox->align(FL_ALIGN_INSIDE | FL_ALIGN_LEFT | FL_ALIGN_WRAP);
+
+		testBadFileBtn = new Fl_Button(20, 490, 600, 30, "Test Corrupted File Load (bad_data.txt)");
+		testBadFileBtn->callback(onLoadCorrupted, this);
 
 		window->end();
 		window->callback(onExit, this);
@@ -453,6 +466,18 @@ public:
 		app->window->hide();
 	}
 
+	static void onLoadCorrupted(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		try {
+			app->gym.loadFromFile("bad_data.txt");
+			app->setStatus("Loaded bad_data.txt", false);
+		}
+		catch (const std::exception& error) {
+			app->setStatus(std::string("[File Error] ") + error.what(), true);
+			fl_alert("File Error: %s\nValid inventory preserved.", error.what());
+		}
+		app->refreshList();
+	}
 private:
 	// helper: look up an item's category by name
 	std::string categoryOf(const std::string& itemName) const {
