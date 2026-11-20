@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <cctype>
 
+#include "Inventory.h"
+
 // case insensitive search helper
 static std::string toLower(std::string s) {
 	std::transform(s.begin(), s.end(), s.begin(),
@@ -30,20 +32,19 @@ protected:
 	bool isAvailable;
 
 public:
-	// coutner
+	// Destructor counter
 	static inline int liveCount = 0;
 	static inline std::string lastDestroyed;
 
 	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) { ++liveCount; }
 
-	// heres an overload )
+	// heres an overload 
 	Equipment(std::string n) : Equipment(n, "General") {}
 
-	// bluh
+	// no copying
 	Equipment(const Equipment&) = delete;
 	Equipment& operator=(const Equipment&) = delete;
 
-	// what this do
 	virtual ~Equipment() {
 		--liveCount;
 		lastDestroyed = name;
@@ -93,29 +94,25 @@ public:
 // Gym class
 class Gym {
 private:
-	std::vector<std::unique_ptr<Equipment>> inventory;
 
-	// helper: finds index by name, throws if missing
+	Inventory<Equipment> inventory;
+
 	size_t indexOf(const std::string& itemName) const {
-		for (size_t i = 0; i < inventory.size(); ++i) {
-			if (inventory[i]->getName() == itemName) return i;
-		}
-		throw std::out_of_range("Equipment name doesn't exist in list.");
+		auto idx = inventory.findIndex([&](const Equipment& e) { return e.getName() == itemName; });
+		if (!idx) throw std::out_of_range("Equipment name doesn't exist in list.");
+		return *idx;
 	}
 
 	bool hasName(const std::string& itemName) const {
-		for (const auto& item : inventory) {
-			if (item->getName() == itemName) return true;
-		}
-		return false;
+		return inventory.contains([&](const Equipment& e) { return e.getName() == itemName; });
 	}
 
 public:
 	void addEquipment(std::unique_ptr<Equipment> item) {
-		inventory.push_back(std::move(item));
+		inventory.add(std::move(item));
 	}
 
-	
+
 	void addNewEquipment(const std::string& itemName, std::string itemCategory) {
 		if (itemName.empty()) {
 			throw std::invalid_argument("Type a name for the new equipment item.");
@@ -134,19 +131,21 @@ public:
 
 	size_t size() const { return inventory.size(); }
 
-	const Equipment& at(size_t i) const { return *inventory.at(i); }
+	const Equipment& at(size_t i) const { return inventory.at(i); }
 
+	//take by index 
 	void takeItem(size_t index) {
 		if (index >= inventory.size()) {
 			throw std::out_of_range("Equipment index doesn't exist in list.");
 		}
-		Equipment& item = *inventory[index];
+		Equipment& item = inventory.at(index);
 		if (!item.getAvailability()) {
 			throw std::runtime_error("Equipment is currently unavailable.");
 		}
 		item.setAvailability(false);
 	}
 
+	//take by name (take my wife and kids too)
 	void takeItem(const std::string& itemName) {
 		takeItem(indexOf(itemName));
 	}
@@ -155,7 +154,7 @@ public:
 		if (index >= inventory.size()) {
 			throw std::out_of_range("Equipment index doesn't exist in list.");
 		}
-		Equipment& item = *inventory[index];
+		Equipment& item = inventory.at(index);
 		if (item.getAvailability()) {
 			throw std::runtime_error("Equipment is already in the gym equipment list.");
 		}
@@ -166,20 +165,22 @@ public:
 		returnItem(indexOf(itemName));
 	}
 
+	// remove by index
 	void removeItem(size_t index) {
 		if (index >= inventory.size()) {
 			throw std::out_of_range("Equipment index doesn't exist in list.");
 		}
-		if (!inventory[index]->getAvailability()) {
+		if (!inventory.at(index).getAvailability()) {
 			throw std::runtime_error("Equipment is currently in use. Return it before removing it.");
 		}
-		inventory.erase(inventory.begin() + static_cast<std::ptrdiff_t>(index));
+		inventory.removeAt(index);
 	}
 
 	void removeItem(const std::string& itemName) {
 		removeItem(indexOf(itemName));
 	}
 
+	// Persistence
 	void saveToFile(const std::string& filename) const {
 		std::ofstream out(filename);
 		if (!out) {
@@ -199,7 +200,7 @@ public:
 		if (!in) {
 			throw std::runtime_error("Save file not found: " + filename);
 		}
-		std::vector<std::unique_ptr<Equipment>> tempInventory;
+		Inventory<Equipment> tempInventory;
 		std::string line;
 		while (std::getline(in, line)) {
 			if (line.empty()) continue;
@@ -230,54 +231,41 @@ public:
 			}
 
 			eq->setAvailability(availFlag == "1");
-			tempInventory.push_back(std::move(eq));
+			tempInventory.add(std::move(eq));
 		}
+		// move-assignment destroys the old inventory's objects
 		inventory = std::move(tempInventory);
 	}
 
 	// count available items overall...
 	size_t countAvailable() const {
-		size_t n = 0;
-		for (const auto& item : inventory) {
-			if (item->getAvailability()) ++n;
-		}
-		return n;
+		return inventory.countIf([](const Equipment& e) { return e.getAvailability(); });
 	}
 
 	// ...or within one category
 	size_t countAvailable(const std::string& category) const {
-		size_t n = 0;
-		for (const auto& item : inventory) {
-			if (item->getCategory() == category && item->getAvailability()) ++n;
-		}
-		return n;
+		return inventory.countIf([&](const Equipment& e) {
+			return e.getCategory() == category && e.getAvailability();
+			});
 	}
 
-	// i'd say only gog and i know how this code works but i barely know what im doing
+	// search list
 	std::vector<size_t> search(const std::string& term) const {
-		std::vector<size_t> results;
 		std::string t = toLower(term);
-		for (size_t i = 0; i < inventory.size(); ++i) {
-			if (t.empty() ||
-				toLower(inventory[i]->getName()).find(t) != std::string::npos ||
-				toLower(inventory[i]->getCategory()).find(t) != std::string::npos) {
-				results.push_back(i);
-			}
-		}
-		return results;
+		return inventory.findAll([&](const Equipment& e) {
+			return t.empty() ||
+				toLower(e.getName()).find(t) != std::string::npos ||
+				toLower(e.getCategory()).find(t) != std::string::npos;
+			});
 	}
 
-	// sdgsdgsdg
+	// ...or restrict the search to one exact category (name match only)
 	std::vector<size_t> search(const std::string& term, const std::string& category) const {
-		std::vector<size_t> results;
 		std::string t = toLower(term);
-		for (size_t i = 0; i < inventory.size(); ++i) {
-			if (inventory[i]->getCategory() != category) continue;
-			if (t.empty() || toLower(inventory[i]->getName()).find(t) != std::string::npos) {
-				results.push_back(i);
-			}
-		}
-		return results;
+		return inventory.findAll([&](const Equipment& e) {
+			return e.getCategory() == category &&
+				(t.empty() || toLower(e.getName()).find(t) != std::string::npos);
+			});
 	}
 };
 
@@ -303,12 +291,11 @@ public:
 	Fl_Box* statusBox;
 	Fl_Button* testBadFileBtn;
 
-	// hrhfh
+	// browser row filtering fix
 	std::vector<size_t> visible;
 	std::string currentFilter;
 
 	GymApp() {
-		// help its 2am
 		try {
 			gym.loadFromFile(saveFile);
 		}
@@ -317,22 +304,10 @@ public:
 			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
 			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 3", "Cardio"));
 			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 4", "Cardio"));
-			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 5", "Cardio"));
-			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 6", "Cardio"));
-			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 7", "Cardio"));
-			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 8", "Cardio"));
 			gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (10 lbs)", "Strength"));
 			gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (20 lbs)", "Strength"));
 			gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (40 lbs)", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (10 lbs)", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (20 lbs)", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (40 lbs)", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (10 lbs)", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (20 lbs)", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (40 lbs)", "Strength"));
 			gym.addEquipment(std::make_unique<Status>("Leg Press Machine 1", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Leg Press Machine 2", "Strength"));
-			gym.addEquipment(std::make_unique<Status>("Leg Press Machine 3", "Strength"));
 			gym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
 			gym.saveToFile(saveFile);
 		}
@@ -348,10 +323,10 @@ public:
 		title->labelfont(FL_BOLD);
 		title->labelsize(18);
 
-		// search row, right under the title (label sits to the left of the box)
+		// search row
 		searchInput = new Fl_Input(90, 48, 320, 30, "Search:");
 		searchInput->when(FL_WHEN_ENTER_KEY | FL_WHEN_NOT_CHANGED);
-		searchInput->callback(onSearch, this);   // pressing Enter searches
+		searchInput->callback(onSearch, this);   
 
 		searchBtn = new Fl_Button(420, 48, 95, 30, "Search");
 		searchBtn->callback(onSearch, this);
@@ -363,7 +338,7 @@ public:
 		list->callback(onSelect, this);
 		list->textsize(14);
 
-		// also used as the "new item name" field when adding
+		// item reusing yay
 		nameInput = new Fl_Input(20, 325, 600, 30, "Equipment name (click a row or type exact name):");
 		nameInput->align(FL_ALIGN_TOP_LEFT);
 
@@ -376,7 +351,6 @@ public:
 		exitBtn = new Fl_Button(430, 375, 190, 40, "Exit Application");
 		exitBtn->callback(onExit, this);
 
-		// NEW: add / remove row
 		categoryInput = new Fl_Input(20, 450, 300, 30, "Category for new item (blank = General):");
 		categoryInput->align(FL_ALIGN_TOP_LEFT);
 
@@ -397,7 +371,7 @@ public:
 		window->callback(onExit, this);
 	}
 
-	// rebuilds browser from inventory
+	// rebuilds browser
 	void refreshList() {
 		list->clear();
 		visible = gym.search(currentFilter);
@@ -409,12 +383,14 @@ public:
 		}
 	}
 
+	// explicit error flag
 	void setStatus(const std::string& msg, bool isError) {
 		statusBox->copy_label(msg.c_str());
 		statusBox->labelcolor(isError ? FL_RED : FL_DARK_GREEN);
 		statusBox->redraw();
 	}
 
+	// success message
 	void setStatus(const std::string& msg) {
 		setStatus(msg, false);
 	}
@@ -432,6 +408,7 @@ public:
 		return visible[static_cast<size_t>(row - 1)];
 	}
 
+	// callbacks
 	static void onSelect(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
 		int row = app->list->value();
@@ -477,7 +454,7 @@ public:
 			}
 			else {
 				size_t idx = app->selectedIndex();
-				app->gym.takeItem(idx);                          
+				app->gym.takeItem(idx);                         
 				target = app->gym.at(idx).getName();
 				category = app->gym.at(idx).getCategory();
 			}
@@ -516,6 +493,7 @@ public:
 		app->refreshList();
 	}
 
+	
 	static void onAdd(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
 		std::string name = app->nameInput->value();
@@ -524,6 +502,7 @@ public:
 			app->gym.addNewEquipment(name, category);
 			app->gym.saveToFile(app->saveFile);
 
+			// comment goes gere
 			app->searchInput->value("");
 			app->currentFilter.clear();
 			app->nameInput->value("");
@@ -539,6 +518,7 @@ public:
 		app->refreshList();
 	}
 
+	// my sinuses hurt
 	static void onRemove(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
 		std::string target = app->nameInput->value();
@@ -582,7 +562,7 @@ public:
 		app->refreshList();
 	}
 private:
-	// search category
+	// is the teacher actually reading these comments
 	std::string categoryOf(const std::string& itemName) const {
 		for (size_t i = 0; i < gym.size(); ++i) {
 			if (gym.at(i).getName() == itemName) return gym.at(i).getCategory();
@@ -592,10 +572,6 @@ private:
 };
 
 int main(int argc, char** argv) {
-	GymApp app;
-	app.window->show(argc, argv);
-	return Fl::run();
-}
 	GymApp app;
 	app.window->show(argc, argv);
 	return Fl::run();
