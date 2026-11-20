@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <cctype>
 
-// case sensitive search stuff
+// case insensitive search helper
 static std::string toLower(std::string s) {
 	std::transform(s.begin(), s.end(), s.begin(),
 		[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -30,12 +30,24 @@ protected:
 	bool isAvailable;
 
 public:
-	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) {}
+	// coutner
+	static inline int liveCount = 0;
+	static inline std::string lastDestroyed;
 
-	// heres an overload
+	Equipment(std::string n, std::string cat) : name(n), category(cat), isAvailable(true) { ++liveCount; }
+
+	// heres an overload )
 	Equipment(std::string n) : Equipment(n, "General") {}
 
-	virtual ~Equipment() = default;
+	// bluh
+	Equipment(const Equipment&) = delete;
+	Equipment& operator=(const Equipment&) = delete;
+
+	// what this do
+	virtual ~Equipment() {
+		--liveCount;
+		lastDestroyed = name;
+	}
 
 	std::string getName() const { return name; }
 	std::string getCategory() const { return category; }
@@ -49,7 +61,7 @@ public:
 class EquipmentCategory : public Equipment {
 public:
 	EquipmentCategory(std::string n, std::string cat) : Equipment(n, cat) {}
-	EquipmentCategory(std::string n) : Equipment(n) {}   
+	EquipmentCategory(std::string n) : Equipment(n) {}
 
 	std::string displayInfo() const override {
 		return "[Category] Item: " + name + " | Type: " + category +
@@ -61,7 +73,7 @@ public:
 class Status : public Equipment {
 public:
 	Status(std::string n, std::string cat) : Equipment(n, cat) {}
-	Status(std::string n) : Equipment(n) {}              
+	Status(std::string n) : Equipment(n) {}
 
 	std::string displayInfo() const override {
 		return "[Status] Item: " + name + " | Status: " + (isAvailable ? "Available" : "In Use") +
@@ -91,16 +103,39 @@ private:
 		throw std::out_of_range("Equipment name doesn't exist in list.");
 	}
 
+	bool hasName(const std::string& itemName) const {
+		for (const auto& item : inventory) {
+			if (item->getName() == itemName) return true;
+		}
+		return false;
+	}
+
 public:
 	void addEquipment(std::unique_ptr<Equipment> item) {
 		inventory.push_back(std::move(item));
+	}
+
+	
+	void addNewEquipment(const std::string& itemName, std::string itemCategory) {
+		if (itemName.empty()) {
+			throw std::invalid_argument("Type a name for the new equipment item.");
+		}
+
+		if (itemName.find_first_of("|\r\n") != std::string::npos ||
+			itemCategory.find_first_of("|\r\n") != std::string::npos) {
+			throw std::invalid_argument("Names and categories can't contain '|' or line breaks.");
+		}
+		if (hasName(itemName)) {
+			throw std::invalid_argument("Equipment \"" + itemName + "\" already exists.");
+		}
+		if (itemCategory.empty()) itemCategory = "General";
+		addEquipment(std::make_unique<EquipmentCategory>(itemName, itemCategory));
 	}
 
 	size_t size() const { return inventory.size(); }
 
 	const Equipment& at(size_t i) const { return *inventory.at(i); }
 
-	//take by index (used with the selected browser row)
 	void takeItem(size_t index) {
 		if (index >= inventory.size()) {
 			throw std::out_of_range("Equipment index doesn't exist in list.");
@@ -112,7 +147,6 @@ public:
 		item.setAvailability(false);
 	}
 
-	//take by name (typed into the input box)
 	void takeItem(const std::string& itemName) {
 		takeItem(indexOf(itemName));
 	}
@@ -132,7 +166,20 @@ public:
 		returnItem(indexOf(itemName));
 	}
 
-	// Persistence
+	void removeItem(size_t index) {
+		if (index >= inventory.size()) {
+			throw std::out_of_range("Equipment index doesn't exist in list.");
+		}
+		if (!inventory[index]->getAvailability()) {
+			throw std::runtime_error("Equipment is currently in use. Return it before removing it.");
+		}
+		inventory.erase(inventory.begin() + static_cast<std::ptrdiff_t>(index));
+	}
+
+	void removeItem(const std::string& itemName) {
+		removeItem(indexOf(itemName));
+	}
+
 	void saveToFile(const std::string& filename) const {
 		std::ofstream out(filename);
 		if (!out) {
@@ -141,9 +188,9 @@ public:
 		for (const auto& item : inventory) {
 			std::string typeTag = (dynamic_cast<const EquipmentCategory*>(item.get()) != nullptr) ? "Category" : "Status";
 			out << typeTag << "|"
-				     << item->getName() << "|"
-					 << item->getCategory() << "|"
-				     << (item->getAvailability() ? "1" : "0") << "\n";
+				<< item->getName() << "|"
+				<< item->getCategory() << "|"
+				<< (item->getAvailability() ? "1" : "0") << "\n";
 		}
 	}
 
@@ -161,11 +208,11 @@ public:
 			std::string itemName;
 			std::string itemCategory;
 			std::string availFlag;
-			if(!std::getline(ss, typeTag, '|') ||
-				    !std::getline(ss, itemName, '|') ||
-				    !std::getline(ss, itemCategory, '|') ||
-				    !std::getline(ss, availFlag, '|')) {
-				    throw std::runtime_error("Malformed record in save file.");
+			if (!std::getline(ss, typeTag, '|') ||
+				!std::getline(ss, itemName, '|') ||
+				!std::getline(ss, itemCategory, '|') ||
+				!std::getline(ss, availFlag, '|')) {
+				throw std::runtime_error("Malformed record in save file.");
 			}
 			if (availFlag != "0" && availFlag != "1") {
 				throw std::runtime_error("Invalid availability flag in save file.");
@@ -206,7 +253,7 @@ public:
 		return n;
 	}
 
-	// search list
+	// i'd say only gog and i know how this code works but i barely know what im doing
 	std::vector<size_t> search(const std::string& term) const {
 		std::vector<size_t> results;
 		std::string t = toLower(term);
@@ -220,7 +267,7 @@ public:
 		return results;
 	}
 
-	// ...or restrict the search to one exact category (name match only)
+	// sdgsdgsdg
 	std::vector<size_t> search(const std::string& term, const std::string& category) const {
 		std::vector<size_t> results;
 		std::string t = toLower(term);
@@ -250,50 +297,52 @@ public:
 	Fl_Button* takeBtn;
 	Fl_Button* returnBtn;
 	Fl_Button* exitBtn;
+	Fl_Input* categoryInput;   
+	Fl_Button* addBtn;         
+	Fl_Button* removeBtn;      
 	Fl_Box* statusBox;
 	Fl_Button* testBadFileBtn;
 
-	// maps browser row (row - 1) -> inventory index, so filtering doesn't break selection
+	// hrhfh
 	std::vector<size_t> visible;
 	std::string currentFilter;
 
 	GymApp() {
-		// Inventory
+		// help its 2am
 		try {
-				gym.loadFromFile(saveFile);
+			gym.loadFromFile(saveFile);
 		}
 		catch (const std::exception&) {
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 3", "Cardio"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 4", "Cardio"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 5", "Cardio"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 6", "Cardio"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 7", "Cardio"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 8", "Cardio"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (10 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (20 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (40 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (10 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (20 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (40 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (10 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (20 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (40 lbs)", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Leg Press Machine 1", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Leg Press Machine 2", "Strength"));
-			   gym.addEquipment(std::make_unique<Status>("Leg Press Machine 3", "Strength"));
-			   gym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
-			   gym.saveToFile(saveFile);
-
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 1", "Cardio"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 2", "Cardio"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 3", "Cardio"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 4", "Cardio"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 5", "Cardio"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 6", "Cardio"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 7", "Cardio"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Treadmill 8", "Cardio"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (10 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (20 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 1 (40 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (10 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (20 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 2 (40 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (10 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (20 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Dumbbells 3 (40 lbs)", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Leg Press Machine 1", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Leg Press Machine 2", "Strength"));
+			gym.addEquipment(std::make_unique<Status>("Leg Press Machine 3", "Strength"));
+			gym.addEquipment(std::make_unique<EquipmentCategory>("Rowing Machine", "Cardio"));
+			gym.saveToFile(saveFile);
 		}
-		
+
 		buildWindow();
 		refreshList();
 	}
 
 	void buildWindow() {
-		window = new Fl_Double_Window(640, 535, "Gym Equipment Tracker App");
+		window = new Fl_Double_Window(640, 610, "Gym Equipment Tracker App");
 
 		Fl_Box* title = new Fl_Box(20, 10, 600, 30, "Gym Equipment List");
 		title->labelfont(FL_BOLD);
@@ -314,6 +363,7 @@ public:
 		list->callback(onSelect, this);
 		list->textsize(14);
 
+		// also used as the "new item name" field when adding
 		nameInput = new Fl_Input(20, 325, 600, 30, "Equipment name (click a row or type exact name):");
 		nameInput->align(FL_ALIGN_TOP_LEFT);
 
@@ -326,18 +376,28 @@ public:
 		exitBtn = new Fl_Button(430, 375, 190, 40, "Exit Application");
 		exitBtn->callback(onExit, this);
 
-		statusBox = new Fl_Box(20, 430, 600, 50, "Welcome! Select an item to take or return.");
+		// NEW: add / remove row
+		categoryInput = new Fl_Input(20, 450, 300, 30, "Category for new item (blank = General):");
+		categoryInput->align(FL_ALIGN_TOP_LEFT);
+
+		addBtn = new Fl_Button(335, 440, 135, 40, "Add Item");
+		addBtn->callback(onAdd, this);
+
+		removeBtn = new Fl_Button(485, 440, 135, 40, "Remove Item");
+		removeBtn->callback(onRemove, this);
+
+		statusBox = new Fl_Box(20, 495, 600, 60, "Welcome! Select an item to take or return.");
 		statusBox->box(FL_DOWN_BOX);
 		statusBox->align(FL_ALIGN_INSIDE | FL_ALIGN_LEFT | FL_ALIGN_WRAP);
 
-		testBadFileBtn = new Fl_Button(20, 490, 600, 30, "Test Corrupted File Load (bad_data.txt)");
+		testBadFileBtn = new Fl_Button(20, 565, 600, 30, "Test Corrupted File Load (bad_data.txt)");
 		testBadFileBtn->callback(onLoadCorrupted, this);
 
 		window->end();
 		window->callback(onExit, this);
 	}
 
-	// rebuilds browser from inventory, showing only items matching currentFilter
+	// rebuilds browser from inventory
 	void refreshList() {
 		list->clear();
 		visible = gym.search(currentFilter);
@@ -349,25 +409,21 @@ public:
 		}
 	}
 
-	// explicit error flag
 	void setStatus(const std::string& msg, bool isError) {
 		statusBox->copy_label(msg.c_str());
 		statusBox->labelcolor(isError ? FL_RED : FL_DARK_GREEN);
 		statusBox->redraw();
 	}
 
-	// success message (no flag needed)
 	void setStatus(const std::string& msg) {
 		setStatus(msg, false);
 	}
 
-	// message plus a live "available" count for a category
 	void setStatus(const std::string& msg, const std::string& category) {
 		setStatus(msg + "  [" + category + " available: " +
 			std::to_string(gym.countAvailable(category)) + "]", false);
 	}
 
-	// returns the inventory index of the selected row, or throws if nothing selected
 	size_t selectedIndex() const {
 		int row = list->value();
 		if (row <= 0 || static_cast<size_t>(row) > visible.size()) {
@@ -376,7 +432,6 @@ public:
 		return visible[static_cast<size_t>(row - 1)];
 	}
 
-	// callbacks
 	static void onSelect(Fl_Widget*, void* data) {
 		GymApp* app = static_cast<GymApp*>(data);
 		int row = app->list->value();
@@ -417,12 +472,12 @@ public:
 		try {
 			std::string category;
 			if (!target.empty()) {
-				app->gym.takeItem(target);                       // by name
+				app->gym.takeItem(target);                       
 				category = app->categoryOf(target);
 			}
 			else {
 				size_t idx = app->selectedIndex();
-				app->gym.takeItem(idx);                          // by index
+				app->gym.takeItem(idx);                          
 				target = app->gym.at(idx).getName();
 				category = app->gym.at(idx).getCategory();
 			}
@@ -442,17 +497,65 @@ public:
 		try {
 			std::string category;
 			if (!target.empty()) {
-				app->gym.returnItem(target);                     // by name
+				app->gym.returnItem(target);                     
 				category = app->categoryOf(target);
 			}
 			else {
 				size_t idx = app->selectedIndex();
-				app->gym.returnItem(idx);                        // by index
+				app->gym.returnItem(idx);                        
 				target = app->gym.at(idx).getName();
 				category = app->gym.at(idx).getCategory();
 			}
 			app->gym.saveToFile(app->saveFile);
 			app->setStatus("Success: You have returned the " + target + ".", category);
+		}
+		catch (const std::exception& error) {
+			app->setStatus(std::string("[Notification] ") + error.what(), true);
+			fl_alert("%s", error.what());
+		}
+		app->refreshList();
+	}
+
+	static void onAdd(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		std::string name = app->nameInput->value();
+		std::string category = app->categoryInput->value();
+		try {
+			app->gym.addNewEquipment(name, category);
+			app->gym.saveToFile(app->saveFile);
+
+			app->searchInput->value("");
+			app->currentFilter.clear();
+			app->nameInput->value("");
+			app->categoryInput->value("");
+
+			app->setStatus("Success: Added \"" + name + "\".  [Equipment objects alive: " +
+				std::to_string(Equipment::liveCount) + "]");
+		}
+		catch (const std::exception& error) {
+			app->setStatus(std::string("[Notification] ") + error.what(), true);
+			fl_alert("%s", error.what());
+		}
+		app->refreshList();
+	}
+
+	static void onRemove(Fl_Widget*, void* data) {
+		GymApp* app = static_cast<GymApp*>(data);
+		std::string target = app->nameInput->value();
+		try {
+			if (!target.empty()) {
+				app->gym.removeItem(target);                     
+			}
+			else {
+				size_t idx = app->selectedIndex();
+				target = app->gym.at(idx).getName();             
+				app->gym.removeItem(idx);                        
+			}
+			app->gym.saveToFile(app->saveFile);
+			app->nameInput->value("");
+			app->setStatus("Success: Removed \"" + Equipment::lastDestroyed +
+				"\" (destructor ran).  [Equipment objects alive: " +
+				std::to_string(Equipment::liveCount) + "]");
 		}
 		catch (const std::exception& error) {
 			app->setStatus(std::string("[Notification] ") + error.what(), true);
@@ -479,7 +582,7 @@ public:
 		app->refreshList();
 	}
 private:
-	// helper: look up an item's category by name
+	// search category
 	std::string categoryOf(const std::string& itemName) const {
 		for (size_t i = 0; i < gym.size(); ++i) {
 			if (gym.at(i).getName() == itemName) return gym.at(i).getCategory();
@@ -489,6 +592,10 @@ private:
 };
 
 int main(int argc, char** argv) {
+	GymApp app;
+	app.window->show(argc, argv);
+	return Fl::run();
+}
 	GymApp app;
 	app.window->show(argc, argv);
 	return Fl::run();
