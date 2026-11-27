@@ -5,7 +5,13 @@ GUI from: FLTK v1.4.5
 
 Build/run steps:
 1: Open visual studio
-2: Ensure FLTK is properly integrated into your Visual Studio instance
-3: Run code
+2: Install VCPKG
+ - open the developer powershell in your project 
+ - type vcpkg integrate install
+ - Go to Properties > VCPKG > Enable Manifest > Select Yes
+3: Install FLTK
+ - type vcpkg new --application
+ - type vcpkg add port fltk
+4: Run code
 
 Requires vcpkg, cmake, and FLTK
